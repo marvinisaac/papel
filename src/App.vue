@@ -16,7 +16,7 @@
           :note-id="selectedId"
           :title="currentNote?.title ?? ''"
           :content="currentNote?.content ?? ''"
-          @update="handleUpdate"
+          @update-local="handleUpdateLocal"
         />
       </div>
     </main>
@@ -28,7 +28,7 @@ import { computed, onMounted, ref } from 'vue';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
 import type { Note } from './types/note';
-import { listNotes, createNote, updateNote, deleteNote } from './storage/noteStore';
+import { listNotes, createNote, deleteNote } from './storage/noteStore';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
@@ -77,7 +77,7 @@ async function handleDelete(id: string) {
   }
 }
 
-async function handleUpdate(payload: { id: string; title: string; content: string }) {
+function handleUpdateLocal(payload: { id: string; title: string; content: string }) {
   const idx = notes.value.findIndex((n) => n.id === payload.id);
   if (idx === -1) return;
   const existing = notes.value[idx];
@@ -87,15 +87,6 @@ async function handleUpdate(payload: { id: string; title: string; content: strin
     content: payload.content,
   };
   notes.value.splice(idx, 1, updated);
-  try {
-    await updateNote(payload.id, {
-      title: payload.title,
-      content: payload.content,
-    });
-    notes.value = await listNotes();
-  } catch (err) {
-    console.error('Failed to update note', err);
-  }
 }
 </script>
 

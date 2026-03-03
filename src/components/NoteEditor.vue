@@ -38,8 +38,9 @@
 </template>
 
 <script setup lang="ts">
-import { watch, ref, computed } from 'vue';
+import { watch, ref, computed, onBeforeUnmount } from 'vue';
 import { marked } from 'marked';
+import { queueAutosave, flushAutosave } from '../storage/autosave';
 
 const props = defineProps<{
   noteId: string | null;
@@ -48,7 +49,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  (e: 'update', payload: { id: string; title: string; content: string }): void;
+  (e: 'update-local', payload: { id: string; title: string; content: string }): void;
 }>();
 
 const draftTitle = ref(props.title);
@@ -56,7 +57,7 @@ const draftContent = ref(props.content);
 const activeTab = ref<'write' | 'preview'>('write');
 
 watch(
-  () => [props.title, props.content],
+  () => [props.title, props.content, props.noteId],
   ([title, content]) => {
     draftTitle.value = title;
     draftContent.value = content;
@@ -67,9 +68,16 @@ watch(
   () => [draftTitle.value, draftContent.value, props.noteId],
   ([title, content, id]) => {
     if (!id) return;
-    emit('update', { id, title, content });
+    emit('update-local', { id, title, content });
+    queueAutosave(id, { title, content });
   },
 );
+
+onBeforeUnmount(() => {
+  if (props.noteId) {
+    void flushAutosave(props.noteId);
+  }
+});
 
 const renderedMarkdown = computed(() => {
   return marked.parse(draftContent.value || '');
