@@ -2,6 +2,7 @@
   <div class="app-shell">
     <header class="app-header">
       <h1>Papel Offline MVP</h1>
+      <ImportExportBar @import-files="handleImport" @export-all="handleExportAll" />
     </header>
     <main class="app-main">
       <div class="layout">
@@ -26,8 +27,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
+import ImportExportBar from './components/ImportExportBar.vue';
 import type { Note } from './types/note';
 import { listNotes, createNote, deleteNote } from './storage/noteStore';
 
@@ -116,6 +120,44 @@ function handleUpdateLocal(payload: { id: string; title: string; content: string
   };
   notes.value.splice(idx, 1, updated);
 }
+
+async function handleImport(files: FileList) {
+  const imported: Note[] = [];
+  for (const file of Array.from(files)) {
+    if (!file.name.endsWith('.md')) continue;
+    const content = await file.text();
+    const title = file.name.replace(/\.md$/i, '');
+    const note = await createNote({ title, content });
+    imported.push(note);
+  }
+  if (imported.length) {
+    notes.value = [...imported, ...notes.value];
+    selectedId.value = imported[0].id;
+    await router.push({ name: 'note', params: { id: imported[0].id } });
+  }
+}
+
+function slugify(title: string) {
+  return (
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '') || 'note'
+  );
+}
+
+async function handleExportAll() {
+  if (!notes.value.length) return;
+  const zip = new JSZip();
+  notes.value.forEach((note) => {
+    const base = slugify(note.title || 'untitled-note');
+    const filename = `${base}-${note.id.slice(0, 8)}.md`;
+    zip.file(filename, note.content || '');
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  saveAs(blob, 'papel-notes.zip');
+}
 </script>
 
 <style scoped>
@@ -128,9 +170,12 @@ function handleUpdateLocal(payload: { id: string; title: string; content: string
 }
 
 .app-header {
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1.5rem;
   border-bottom: 1px solid #e5e7eb;
   background: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .app-main {
