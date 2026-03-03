@@ -25,7 +25,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -34,6 +34,8 @@ import NoteEditor from './components/NoteEditor.vue';
 import ImportExportBar from './components/ImportExportBar.vue';
 import type { Note } from './types/note';
 import { listNotes, createNote, deleteNote } from './storage/noteStore';
+import { flushAutosave } from './storage/autosave';
+import { registerGlobalShortcuts } from './shortcuts';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
@@ -61,6 +63,21 @@ async function loadNotes() {
 onMounted(() => {
   loadNotes().catch((err) => {
     console.error('Failed to load notes', err);
+  });
+
+  const unregister = registerGlobalShortcuts({
+    newNote: () => {
+      void handleCreate();
+    },
+    saveNote: () => {
+      if (selectedId.value) {
+        void flushAutosave(selectedId.value);
+      }
+    },
+  });
+
+  onBeforeUnmount(() => {
+    unregister();
   });
 });
 

@@ -37,3 +37,17 @@ A single-user, Markdown-based, local-first, browser-based, self-hostable, Git-sy
 ## Limitations
 - Single-user + multiple device is the target scenario
     - To minimize conflicts, multi-user and/or concurrent usage will NOT be supported
+
+
+## Offline Single-Device MVP (Phase 1)
+
+This worktree contains a Vue 3 + Vite single-page app that implements the Phase 1 offline, single-device note-taking MVP using IndexedDB for local storage.
+
+- Single-user, single-device usage.
+- Notes stored locally in IndexedDB via a small storage abstraction.
+- Two-pane UI with a sidebar of notes and a markdown editor with Write/Preview tabs.
+- Autosave with debounce and explicit Ctrl+S shortcut to flush saves.
+- Client-side routing with / and /#/note/:id deep links.
+- Import .md files as notes and export all notes to a .zip of markdown files.
+
+Run "npm install" and then "npm run dev" in the worktree directory to start the dev server.
