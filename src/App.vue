@@ -24,7 +24,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
 import type { Note } from './types/note';
@@ -33,14 +34,23 @@ import { listNotes, createNote, deleteNote } from './storage/noteStore';
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
 
+const route = useRoute();
+const router = useRouter();
+
 const currentNote = computed(() =>
   notes.value.find((n) => n.id === selectedId.value) ?? null,
 );
 
 async function loadNotes() {
   notes.value = await listNotes();
-  if (!selectedId.value && notes.value.length) {
+  const routeId = route.params.id as string | undefined;
+  if (routeId && notes.value.some((n) => n.id === routeId)) {
+    selectedId.value = routeId;
+  } else if (notes.value.length) {
     selectedId.value = notes.value[0].id;
+    await router.replace({ name: 'note', params: { id: selectedId.value } });
+  } else {
+    selectedId.value = null;
   }
 }
 
@@ -50,11 +60,22 @@ onMounted(() => {
   });
 });
 
+watch(
+  () => route.params.id as string | undefined,
+  (id) => {
+    if (!id) return;
+    if (notes.value.some((n) => n.id === id)) {
+      selectedId.value = id;
+    }
+  },
+);
+
 async function handleCreate() {
   try {
     const note = await createNote({ title: 'Untitled note', content: '' });
     notes.value = [note, ...notes.value];
     selectedId.value = note.id;
+    await router.push({ name: 'note', params: { id: note.id } });
   } catch (err) {
     console.error('Failed to create note', err);
   }
@@ -62,6 +83,7 @@ async function handleCreate() {
 
 function handleSelect(id: string) {
   selectedId.value = id;
+  void router.push({ name: 'note', params: { id } });
 }
 
 async function handleDelete(id: string) {
@@ -70,7 +92,13 @@ async function handleDelete(id: string) {
     await deleteNote(id);
     notes.value = notes.value.filter((n) => n.id !== id);
     if (selectedId.value === id) {
-      selectedId.value = notes.value[0]?.id ?? null;
+      const next = notes.value[0];
+      selectedId.value = next?.id ?? null;
+      if (next) {
+        await router.push({ name: 'note', params: { id: next.id } });
+      } else {
+        await router.push({ name: 'home' });
+      }
     }
   } catch (err) {
     console.error('Failed to delete note', err);
