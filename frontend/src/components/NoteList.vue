@@ -49,14 +49,15 @@ function formatDate(iso: string) {
 <style scoped>
 .note-list {
   width: 260px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid #1f2937;
   display: flex;
   flex-direction: column;
+  background: #020617;
 }
 
 .note-list__header {
   padding: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #1f2937;
 }
 
 .primary {
@@ -80,7 +81,7 @@ function formatDate(iso: string) {
 
 .note-list__item {
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #111827;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -88,7 +89,7 @@ function formatDate(iso: string) {
 }
 
 .note-list__item--active {
-  background: #e5f0ff;
+  background: #111827;
 }
 
 .note-list__title {
@@ -98,7 +99,7 @@ function formatDate(iso: string) {
 
 .note-list__meta {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: #9ca3af;
 }
 
 .note-list__delete {
@@ -106,11 +107,16 @@ function formatDate(iso: string) {
   margin-top: 0.2rem;
   padding: 0.2rem 0.4rem;
   font-size: 0.7rem;
+  border: none;
+  border-radius: 0.25rem;
+  background: #b91c1c;
+  color: #f9fafb;
+  cursor: pointer;
 }
 
 .note-list__empty {
   padding: 0.75rem;
   font-size: 0.85rem;
-  color: #6b7280;
+  color: #9ca3af;
 }
 </style>
