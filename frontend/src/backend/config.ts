@@ -1,6 +1,7 @@
 export interface BackendConfig {
   baseUrl: string;
   apiToken: string;
+  salt?: string;
 }
 
 const STORAGE_KEY = 'papel-backend-config-v1';

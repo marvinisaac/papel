@@ -60,11 +60,15 @@ import { listNotes, createNote, deleteNote } from './storage/noteStore';
 import { flushAutosave } from './storage/autosave';
 import { registerGlobalShortcuts } from './shortcuts';
 import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
+import type { DerivedKeyMaterial } from './crypto/keys';
+import { deriveKeysFromPassphrase, randomSalt } from './crypto/keys';
+import { initialSync, pushNote, deleteNoteRemote } from './backend/syncService';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
 const showSyncSettings = ref(false);
 const syncStatusMessage = ref<string | null>(null);
+const cryptoKeys = ref<DerivedKeyMaterial | null>(null);
 
 const route = useRoute();
 const router = useRouter();
@@ -99,7 +103,13 @@ onMounted(() => {
     },
     saveNote: () => {
       if (selectedId.value) {
-        void flushAutosave(selectedId.value);
+        const id = selectedId.value;
+        void (async () => {
+          await flushAutosave(id);
+          if (id && cryptoKeys.value) {
+            await pushNote(id, cryptoKeys.value);
+          }
+        })();
       }
     },
   });
@@ -125,6 +135,9 @@ async function handleCreate() {
     notes.value = [note, ...notes.value];
     selectedId.value = note.id;
     await router.push({ name: 'note', params: { id: note.id } });
+    if (cryptoKeys.value) {
+      await pushNote(note.id, cryptoKeys.value);
+    }
   } catch (err) {
     console.error('Failed to create note', err);
   }
@@ -139,6 +152,9 @@ async function handleDelete(id: string) {
   if (!confirm('Delete this note?')) return;
   try {
     await deleteNote(id);
+    if (cryptoKeys.value) {
+      await deleteNoteRemote(id);
+    }
     notes.value = notes.value.filter((n) => n.id !== id);
     if (selectedId.value === id) {
       const next = notes.value[0];
@@ -214,12 +230,54 @@ function handleSaveSyncSettings(payload: {
     return;
   }
 
-  saveBackendConfig({
-    baseUrl: payload.backendUrl,
-    apiToken: payload.apiToken,
-  });
-  syncStatusMessage.value = 'Sync settings saved. Enter your passphrase again next session to enable encryption.';
-  showSyncSettings.value = false;
+  if (!payload.passphrase) {
+    syncStatusMessage.value = 'Passphrase is required to derive encryption keys.';
+    return;
+  }
+
+  (async () => {
+    try {
+      const existing = loadBackendConfig();
+      let saltBytes: Uint8Array;
+      if (existing?.salt) {
+        const binary = atob(existing.salt);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        saltBytes = bytes;
+      } else {
+        saltBytes = randomSalt();
+      }
+
+      const keys = await deriveKeysFromPassphrase(payload.passphrase, {
+        salt: saltBytes,
+      });
+      cryptoKeys.value = keys;
+
+      let saltBase64 = '';
+      {
+        let binary = '';
+        saltBytes.forEach((b) => {
+          binary += String.fromCharCode(b);
+        });
+        saltBase64 = btoa(binary);
+      }
+
+      saveBackendConfig({
+        baseUrl: payload.backendUrl,
+        apiToken: payload.apiToken,
+        salt: saltBase64,
+      });
+
+      await initialSync(keys);
+      syncStatusMessage.value = 'Sync enabled. Notes will be encrypted locally and synced when possible.';
+      showSyncSettings.value = false;
+    } catch (err) {
+      console.error('Failed to configure sync', err);
+      syncStatusMessage.value = 'Failed to configure sync. Check console for details.';
+    }
+  })();
 }
 
 function handleDisableSync() {
