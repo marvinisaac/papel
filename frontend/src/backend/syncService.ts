@@ -107,7 +107,12 @@ export async function validatePassphraseForBackend(
     const index = (await indexResponse.json()) as EncryptedNoteMetadata[];
     hadRemoteNotes = index.length > 0;
 
-    for (const meta of index) {
+    // To keep validation fast on large datasets, only sample a subset
+    // of notes when checking the passphrase.
+    const SAMPLE_LIMIT = 10;
+    const sample = index.slice(0, SAMPLE_LIMIT);
+
+    for (const meta of sample) {
       try {
         const noteUrl = new URL(
           `/api/notes/${encodeURIComponent(meta.noteId)}`,

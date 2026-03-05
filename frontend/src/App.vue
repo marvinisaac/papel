@@ -80,12 +80,14 @@ const backendConfig = ref(loadBackendConfig());
 const route = useRoute();
 const router = useRouter();
 
-const currentNote = computed(() =>
-  notes.value.find((n) => n.id === selectedId.value) ?? null,
+const currentNote = computed(
+  () => notes.value.find((n) => n.id === selectedId.value) ?? null,
 );
 
-const syncConfigured = computed(() => !!backendConfig.value);
-const passphraseLocked = computed(() => !!backendConfig.value?.salt);
+// Sync is considered \"configured\" only when this session has valid keys.
+const syncConfigured = computed(() => !!cryptoKeys.value);
+// Passphrase cannot be changed while keys are active in this session.
+const passphraseLocked = computed(() => !!cryptoKeys.value);
 
 async function loadNotes() {
   notes.value = await listNotes();
@@ -125,6 +127,13 @@ onMounted(() => {
   onBeforeUnmount(() => {
     unregister();
   });
+
+  // If a backend configuration exists, ask the user to re-enter their
+  // passphrase on each reload to unlock sync for this session.
+  if (backendConfig.value && !cryptoKeys.value) {
+    syncStatusMessage.value = 'Enter your passphrase to unlock encrypted sync.';
+    showSyncSettings.value = true;
+  }
 });
 
 watch(
@@ -310,6 +319,7 @@ function handleDisableSync() {
   syncStatusMessage.value = 'Sync disabled. Existing encrypted data on the backend is untouched.';
   showSyncSettings.value = false;
   backendConfig.value = null;
+  cryptoKeys.value = null;
 }
 </script>
 

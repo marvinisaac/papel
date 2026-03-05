@@ -13,14 +13,26 @@
         or passphrase.
       </p>
       <form class="form" @submit.prevent="onSave">
-        <label class="field">
-          <span class="field__label">Backend URL</span>
-          <input v-model="backendUrl" type="url" class="field__input" placeholder="https://papel-backend.example.com" />
-        </label>
-        <label class="field">
-          <span class="field__label">API token</span>
-          <input v-model="apiToken" type="text" class="field__input" placeholder="Copy from backend configuration" />
-        </label>
+        <template v-if="!hasExistingConfig">
+          <label class="field">
+            <span class="field__label">Backend URL</span>
+            <input
+              v-model="backendUrl"
+              type="url"
+              class="field__input"
+              placeholder="https://papel-backend.example.com"
+            />
+          </label>
+          <label class="field">
+            <span class="field__label">API token</span>
+            <input
+              v-model="apiToken"
+              type="text"
+              class="field__input"
+              placeholder="Copy from backend configuration"
+            />
+          </label>
+        </template>
         <label class="field">
           <span class="field__label">Passphrase</span>
           <input
@@ -39,6 +51,39 @@
           To change the passphrase, first disable sync. Existing encrypted data will remain
           tied to the old passphrase.
         </p>
+        <div v-if="hasExistingConfig" class="danger">
+          <button
+            type="button"
+            class="danger__toggle"
+            @click="showAdvancedBackend = !showAdvancedBackend"
+          >
+            {{ showAdvancedBackend ? 'Hide backend configuration' : 'Change backend URL and API token' }}
+          </button>
+          <div v-if="showAdvancedBackend" class="danger__body">
+            <p class="hint">
+              Changing the backend URL or API token can break existing encrypted sync.
+              Only proceed if you know what you are doing.
+            </p>
+            <label class="field">
+              <span class="field__label">Backend URL</span>
+              <input
+                v-model="backendUrl"
+                type="url"
+                class="field__input"
+                placeholder="https://papel-backend.example.com"
+              />
+            </label>
+            <label class="field">
+              <span class="field__label">API token</span>
+              <input
+                v-model="apiToken"
+                type="text"
+                class="field__input"
+                placeholder="Copy from backend configuration"
+              />
+            </label>
+          </div>
+        </div>
         <div class="panel__footer">
           <div class="status" v-if="statusMessage">
             {{ statusMessage }}
@@ -75,12 +120,15 @@ const emit = defineEmits<{
 const backendUrl = ref('');
 const apiToken = ref('');
 const passphrase = ref('');
+const hasExistingConfig = ref(false);
+const showAdvancedBackend = ref(false);
 
 onMounted(() => {
   const existing = loadBackendConfig();
   if (existing) {
     backendUrl.value = existing.baseUrl;
     apiToken.value = existing.apiToken;
+    hasExistingConfig.value = true;
   }
 });
 
@@ -206,6 +254,32 @@ function onSave() {
   background: white;
   font-size: 0.85rem;
   cursor: pointer;
+}
+
+.danger {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.danger__toggle {
+  align-self: flex-start;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid #f97316;
+  background: white;
+  font-size: 0.75rem;
+  color: #ea580c;
+  cursor: pointer;
+}
+
+.danger__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 </style>
 
