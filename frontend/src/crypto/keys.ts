@@ -19,7 +19,7 @@ async function importPassphrase(passphrase: string): Promise<CryptoKey> {
     passphraseBytes,
     { name: 'PBKDF2' },
     false,
-    ['deriveKey'],
+    ['deriveKey', 'deriveBits'],
   );
 }
 
@@ -42,7 +42,8 @@ export async function deriveKeysFromPassphrase(
 
   const baseKey = await importPassphrase(passphrase);
 
-  const masterKey = await crypto.subtle.deriveKey(
+  // Derive 512 bits from PBKDF2 and split into two 256-bit AES-GCM keys.
+  const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
       hash: 'SHA-256',
@@ -50,30 +51,25 @@ export async function deriveKeysFromPassphrase(
       iterations,
     },
     baseKey,
-    { name: 'AES-GCM', length: 256 },
+    512,
+  );
+
+  const bytes = new Uint8Array(bits);
+  const masterBytes = bytes.slice(0, 32);
+  const dataBytes = bytes.slice(32, 64);
+
+  const masterKey = await crypto.subtle.importKey(
+    'raw',
+    masterBytes,
+    { name: 'AES-GCM' },
     false,
     ['encrypt', 'decrypt'],
   );
 
-  const hkdfInfo = new TextEncoder().encode('papel-data-key');
-
-  const hkdfBaseKey = await crypto.subtle.importKey(
+  const dataKey = await crypto.subtle.importKey(
     'raw',
-    await crypto.subtle.exportKey('raw', masterKey),
-    { name: 'HKDF' },
-    false,
-    ['deriveKey'],
-  );
-
-  const dataKey = await crypto.subtle.deriveKey(
-    {
-      name: 'HKDF',
-      hash: 'SHA-256',
-      salt,
-      info: hkdfInfo,
-    },
-    hkdfBaseKey,
-    { name: 'AES-GCM', length: 256 },
+    dataBytes,
+    { name: 'AES-GCM' },
     false,
     ['encrypt', 'decrypt'],
   );
