@@ -13,6 +13,27 @@ const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const API_TOKEN = process.env.API_TOKEN || 'dev-token';
 
+// Basic CORS for browser frontend
+app.use((req, res, next) => {
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+  );
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET,POST,PUT,DELETE,OPTIONS',
+  );
+  res.header('Access-Control-Allow-Credentials', 'true');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+
+  return next();
+});
+
 async function ensureDataDir() {
   await fs.mkdir(DATA_DIR, { recursive: true });
 }
