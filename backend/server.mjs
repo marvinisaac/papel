@@ -1,6 +1,7 @@
 import express from 'express';
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +13,32 @@ app.use(express.json({ limit: '1mb' }));
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const API_TOKEN = process.env.API_TOKEN || 'dev-token';
+
+const SALT_FILE = path.join(DATA_DIR, 'salt.json');
+let backendSaltBase64 = '';
+
+async function loadOrCreateSalt() {
+  try {
+    const raw = await fs.readFile(SALT_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.salt === 'string') {
+      return parsed.salt;
+    }
+  } catch {
+    // fall through to create
+  }
+
+  const buf = crypto.randomBytes(16);
+  const salt = buf.toString('base64');
+  await fs.writeFile(SALT_FILE, JSON.stringify({ salt }), 'utf8');
+  return salt;
+}
+
+async function ensureSalt() {
+  if (!backendSaltBase64) {
+    backendSaltBase64 = await loadOrCreateSalt();
+  }
+}
 
 // Basic CORS for browser frontend
 app.use((req, res, next) => {
@@ -52,6 +79,7 @@ function authenticate(req, res, next) {
 app.use(async (req, res, next) => {
   try {
     await ensureDataDir();
+    await ensureSalt();
     next();
   } catch (err) {
     // eslint-disable-next-line no-console
@@ -61,6 +89,10 @@ app.use(async (req, res, next) => {
 });
 
 app.use(authenticate);
+
+app.get('/api/salt', (req, res) => {
+  res.json({ salt: backendSaltBase64 });
+});
 
 function noteFilePath(noteId) {
   const safeId = String(noteId).replace(/[^a-zA-Z0-9-_]/g, '_');

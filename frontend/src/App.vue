@@ -61,7 +61,7 @@ import { flushAutosave } from './storage/autosave';
 import { registerGlobalShortcuts } from './shortcuts';
 import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
 import type { DerivedKeyMaterial } from './crypto/keys';
-import { deriveKeysFromPassphrase, randomSalt } from './crypto/keys';
+import { deriveKeysFromPassphrase } from './crypto/keys';
 import { initialSync, pushNote, deleteNoteRemote } from './backend/syncService';
 
 const notes = ref<Note[]>([]);
@@ -237,17 +237,22 @@ function handleSaveSyncSettings(payload: {
 
   (async () => {
     try {
-      const existing = loadBackendConfig();
-      let saltBytes: Uint8Array;
-      if (existing?.salt) {
-        const binary = atob(existing.salt);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        saltBytes = bytes;
-      } else {
-        saltBytes = randomSalt();
+      const saltUrl = new URL('/api/salt', payload.backendUrl).toString();
+      const saltResponse = await fetch(saltUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${payload.apiToken}`,
+        },
+      });
+      if (!saltResponse.ok) {
+        throw new Error(`Failed to fetch salt: ${saltResponse.status} ${saltResponse.statusText}`);
+      }
+      const saltJson = (await saltResponse.json()) as { salt: string };
+      const saltBase64FromBackend = saltJson.salt;
+      const binary = atob(saltBase64FromBackend);
+      const saltBytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        saltBytes[i] = binary.charCodeAt(i);
       }
 
       const keys = await deriveKeysFromPassphrase(payload.passphrase, {
@@ -255,19 +260,10 @@ function handleSaveSyncSettings(payload: {
       });
       cryptoKeys.value = keys;
 
-      let saltBase64 = '';
-      {
-        let binary = '';
-        saltBytes.forEach((b) => {
-          binary += String.fromCharCode(b);
-        });
-        saltBase64 = btoa(binary);
-      }
-
       saveBackendConfig({
         baseUrl: payload.backendUrl,
         apiToken: payload.apiToken,
-        salt: saltBase64,
+        salt: saltBase64FromBackend,
       });
 
       await initialSync(keys);
