@@ -1,8 +1,23 @@
 <template>
   <div class="app-shell">
     <header class="app-header">
-      <h1>Papel Offline MVP</h1>
-      <ImportExportBar @import-files="handleImport" @export-all="handleExportAll" />
+      <div class="app-header__title">
+        <h1>Papel Offline MVP</h1>
+        <div class="sync-indicator">
+          <span
+            :class="['sync-indicator__dot', { 'sync-indicator__dot--active': syncConfigured }]"
+          ></span>
+          <span class="sync-indicator__text">
+            {{ syncConfigured ? 'Sync configured' : 'Sync off' }}
+          </span>
+        </div>
+      </div>
+      <div class="app-header__actions">
+        <ImportExportBar @import-files="handleImport" @export-all="handleExportAll" />
+        <button type="button" class="sync-button" @click="showSyncSettings = true">
+          Sync settings
+        </button>
+      </div>
     </header>
     <main class="app-main">
       <div class="layout">
@@ -21,6 +36,13 @@
         />
       </div>
     </main>
+    <SyncSettings
+      v-if="showSyncSettings"
+      :status-message="syncStatusMessage"
+      @close="showSyncSettings = false"
+      @save="handleSaveSyncSettings"
+      @disable="handleDisableSync"
+    />
   </div>
 </template>
 
@@ -32,13 +54,17 @@ import { saveAs } from 'file-saver';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
 import ImportExportBar from './components/ImportExportBar.vue';
+import SyncSettings from './components/SyncSettings.vue';
 import type { Note } from './types/note';
 import { listNotes, createNote, deleteNote } from './storage/noteStore';
 import { flushAutosave } from './storage/autosave';
 import { registerGlobalShortcuts } from './shortcuts';
+import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
+const showSyncSettings = ref(false);
+const syncStatusMessage = ref<string | null>(null);
 
 const route = useRoute();
 const router = useRouter();
@@ -46,6 +72,8 @@ const router = useRouter();
 const currentNote = computed(() =>
   notes.value.find((n) => n.id === selectedId.value) ?? null,
 );
+
+const syncConfigured = computed(() => !!loadBackendConfig());
 
 async function loadNotes() {
   notes.value = await listNotes();
@@ -175,6 +203,30 @@ async function handleExportAll() {
   const blob = await zip.generateAsync({ type: 'blob' });
   saveAs(blob, 'papel-notes.zip');
 }
+
+function handleSaveSyncSettings(payload: {
+  backendUrl: string;
+  apiToken: string;
+  passphrase: string;
+}) {
+  if (!payload.backendUrl || !payload.apiToken) {
+    syncStatusMessage.value = 'Backend URL and API token are required.';
+    return;
+  }
+
+  saveBackendConfig({
+    baseUrl: payload.backendUrl,
+    apiToken: payload.apiToken,
+  });
+  syncStatusMessage.value = 'Sync settings saved. Enter your passphrase again next session to enable encryption.';
+  showSyncSettings.value = false;
+}
+
+function handleDisableSync() {
+  clearBackendConfig();
+  syncStatusMessage.value = 'Sync disabled. Existing encrypted data on the backend is untouched.';
+  showSyncSettings.value = false;
+}
 </script>
 
 <style scoped>
@@ -193,6 +245,50 @@ async function handleExportAll() {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.app-header__title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.sync-indicator__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #9ca3af;
+}
+
+.sync-indicator__dot--active {
+  background: #22c55e;
+}
+
+.sync-indicator__text {
+  white-space: nowrap;
+}
+
+.sync-button {
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.5rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  font-size: 0.8rem;
+  cursor: pointer;
 }
 
 .app-main {
