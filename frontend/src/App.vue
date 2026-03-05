@@ -63,7 +63,12 @@ import { registerGlobalShortcuts } from './shortcuts';
 import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
 import type { DerivedKeyMaterial } from './crypto/keys';
 import { deriveKeysFromPassphrase } from './crypto/keys';
-import { initialSync, pushNote, deleteNoteRemote } from './backend/syncService';
+import {
+  initialSync,
+  pushNote,
+  deleteNoteRemote,
+  validatePassphraseForBackend,
+} from './backend/syncService';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
@@ -261,6 +266,20 @@ function handleSaveSyncSettings(payload: {
       const keys = await deriveKeysFromPassphrase(payload.passphrase, {
         salt: saltBytes,
       });
+
+      const validation = await validatePassphraseForBackend(
+        payload.backendUrl,
+        payload.apiToken,
+        keys,
+      );
+
+      if (validation.hadRemoteNotes && validation.decryptedCount === 0) {
+        cryptoKeys.value = null;
+        syncStatusMessage.value =
+          'Passphrase is invalid for existing encrypted notes on this backend. Use the original passphrase or clear the backend data.';
+        return;
+      }
+
       cryptoKeys.value = keys;
 
       saveBackendConfig({
@@ -275,7 +294,9 @@ function handleSaveSyncSettings(payload: {
       };
 
       await initialSync(keys);
-      syncStatusMessage.value = 'Sync enabled. Notes will be encrypted locally and synced when possible.';
+
+      syncStatusMessage.value =
+        'Sync enabled. Notes will be encrypted locally and synced when possible.';
       showSyncSettings.value = false;
     } catch (err) {
       console.error('Failed to configure sync', err);

@@ -35,9 +35,7 @@ async function loadOrCreateSalt() {
 }
 
 async function ensureSalt() {
-  if (!backendSaltBase64) {
-    backendSaltBase64 = await loadOrCreateSalt();
-  }
+  backendSaltBase64 = await loadOrCreateSalt();
 }
 
 // Basic CORS for browser frontend

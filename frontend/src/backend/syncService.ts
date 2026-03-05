@@ -8,6 +8,8 @@ import {
   deleteEncryptedNote,
   BackendNotConfiguredError,
 } from './client';
+import type { EncryptedNoteMetadata } from './client';
+import type { EncryptedNoteBlob } from '../crypto/encryption';
 import { isBackendConfigured } from './config';
 import { idbClient } from '../storage/indexedDbClient';
 import { getNote } from '../storage/noteStore';
@@ -26,8 +28,22 @@ export function isSyncEnabled(): boolean {
   return isBackendConfigured();
 }
 
-export async function initialSync(keys: DerivedKeyMaterial): Promise<void> {
-  if (!isSyncEnabled()) return;
+export interface InitialSyncResult {
+  hadRemoteNotes: boolean;
+  decryptedCount: number;
+  errorCount: number;
+}
+
+export async function initialSync(
+  keys: DerivedKeyMaterial,
+): Promise<InitialSyncResult> {
+  if (!isSyncEnabled()) {
+    return { hadRemoteNotes: false, decryptedCount: 0, errorCount: 0 };
+  }
+
+  let decryptedCount = 0;
+  let errorCount = 0;
+  let hadRemoteNotes = false;
 
   try {
     await flushPending(keys);
@@ -37,20 +53,92 @@ export async function initialSync(keys: DerivedKeyMaterial): Promise<void> {
 
   try {
     const index = await fetchEncryptedNotesIndex();
+    hadRemoteNotes = index.length > 0;
+
     for (const meta of index) {
       try {
         const blob = await fetchEncryptedNote(meta.noteId);
-        if (!blob) continue;
+        if (!blob) {
+          continue;
+        }
         const note = await decryptNote(keys, blob);
         await idbClient.put<Note>(note);
+        decryptedCount += 1;
       } catch (err) {
+        errorCount += 1;
         console.error('Failed to sync note from backend', meta.noteId, err);
       }
     }
   } catch (err) {
-    if (err instanceof BackendNotConfiguredError) return;
+    if (err instanceof BackendNotConfiguredError) {
+      return { hadRemoteNotes: false, decryptedCount: 0, errorCount: 0 };
+    }
     console.error('Initial sync failed', err);
   }
+
+  return { hadRemoteNotes, decryptedCount, errorCount };
+}
+
+export async function validatePassphraseForBackend(
+  backendUrl: string,
+  apiToken: string,
+  keys: DerivedKeyMaterial,
+): Promise<InitialSyncResult> {
+  let decryptedCount = 0;
+  let errorCount = 0;
+  let hadRemoteNotes = false;
+
+  try {
+    const indexUrl = new URL('/api/notes', backendUrl).toString();
+    const indexResponse = await fetch(indexUrl, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!indexResponse.ok) {
+      throw new Error(
+        `Failed to fetch notes index: ${indexResponse.status} ${indexResponse.statusText}`,
+      );
+    }
+
+    const index = (await indexResponse.json()) as EncryptedNoteMetadata[];
+    hadRemoteNotes = index.length > 0;
+
+    for (const meta of index) {
+      try {
+        const noteUrl = new URL(
+          `/api/notes/${encodeURIComponent(meta.noteId)}`,
+          backendUrl,
+        ).toString();
+        const noteResponse = await fetch(noteUrl, {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!noteResponse.ok) {
+          errorCount += 1;
+          continue;
+        }
+
+        const blob = (await noteResponse.json()) as EncryptedNoteBlob;
+        await decryptNote(keys, blob);
+        decryptedCount += 1;
+      } catch (err) {
+        errorCount += 1;
+        console.error('Failed to validate note from backend', meta.noteId, err);
+      }
+    }
+  } catch (err) {
+    console.error('Passphrase validation failed', err);
+  }
+
+  return { hadRemoteNotes, decryptedCount, errorCount };
 }
 
 export async function pushNote(
