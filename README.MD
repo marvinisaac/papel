@@ -51,3 +51,14 @@ This worktree contains a Vue 3 + Vite single-page app that implements the Phase 
 - Import .md files as notes and export all notes to a .zip of markdown files.
 
 Run "npm install" and then "npm run dev" in the worktree directory to start the dev server.
+
+## Encrypted Backend & Sync (Phase 2)
+
+- Optional, self-hostable backend that stores only encrypted blobs of your notes.
+- All encryption and decryption happen in the browser using a key derived from a user passphrase; the backend never sees plaintext or keys.
+- Simple token-based backend API (`/api/notes`, `/api/notes/:noteId`) that treats encrypted blobs as opaque data on disk.
+- Browser sync flow:
+  - Notes are still edited and autosaved locally in IndexedDB.
+  - When sync is enabled and a passphrase is provided, notes are encrypted and pushed to the backend on save and key lifecycle events.
+  - If the backend is unreachable, edits remain local and are queued for retry.
+- A sync settings panel in the UI lets you configure backend URL, API token, and passphrase, and shows whether encrypted sync is configured.
