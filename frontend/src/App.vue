@@ -39,6 +39,7 @@
     <SyncSettings
       v-if="showSyncSettings"
       :status-message="syncStatusMessage"
+      :passphrase-locked="passphraseLocked"
       @close="showSyncSettings = false"
       @save="handleSaveSyncSettings"
       @disable="handleDisableSync"
@@ -69,6 +70,7 @@ const selectedId = ref<string | null>(null);
 const showSyncSettings = ref(false);
 const syncStatusMessage = ref<string | null>(null);
 const cryptoKeys = ref<DerivedKeyMaterial | null>(null);
+const backendConfig = ref(loadBackendConfig());
 
 const route = useRoute();
 const router = useRouter();
@@ -77,7 +79,8 @@ const currentNote = computed(() =>
   notes.value.find((n) => n.id === selectedId.value) ?? null,
 );
 
-const syncConfigured = computed(() => !!loadBackendConfig());
+const syncConfigured = computed(() => !!backendConfig.value);
+const passphraseLocked = computed(() => !!backendConfig.value?.salt);
 
 async function loadNotes() {
   notes.value = await listNotes();
@@ -265,6 +268,11 @@ function handleSaveSyncSettings(payload: {
         apiToken: payload.apiToken,
         salt: saltBase64FromBackend,
       });
+      backendConfig.value = {
+        baseUrl: payload.backendUrl,
+        apiToken: payload.apiToken,
+        salt: saltBase64FromBackend,
+      };
 
       await initialSync(keys);
       syncStatusMessage.value = 'Sync enabled. Notes will be encrypted locally and synced when possible.';
@@ -280,6 +288,7 @@ function handleDisableSync() {
   clearBackendConfig();
   syncStatusMessage.value = 'Sync disabled. Existing encrypted data on the backend is untouched.';
   showSyncSettings.value = false;
+  backendConfig.value = null;
 }
 </script>
 

@@ -23,11 +23,21 @@
         </label>
         <label class="field">
           <span class="field__label">Passphrase</span>
-          <input v-model="passphrase" type="password" class="field__input" placeholder="Create a strong passphrase" />
+          <input
+            v-model="passphrase"
+            type="password"
+            class="field__input"
+            :disabled="passphraseLocked"
+            :placeholder="passphraseLocked ? 'Passphrase is locked; disable sync to change' : 'Create a strong passphrase'"
+          />
         </label>
         <p class="hint">
           The passphrase never leaves your browser. Losing it means the
           encrypted data on the backend cannot be recovered.
+        </p>
+        <p v-if="passphraseLocked" class="hint">
+          To change the passphrase, first disable sync. Existing encrypted data will remain
+          tied to the old passphrase.
         </p>
         <div class="panel__footer">
           <div class="status" v-if="statusMessage">
@@ -53,6 +63,7 @@ import { loadBackendConfig } from '../backend/config';
 
 const props = defineProps<{
   statusMessage: string | null;
+  passphraseLocked: boolean;
 }>();
 
 const emit = defineEmits<{
