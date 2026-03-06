@@ -1,7 +1,14 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-import { DATA_DIR } from '../config.mjs';
+import { STORAGE_DIR } from '../config.mjs';
+import {
+  ensureRepoInitialized,
+  stageNoteChange,
+  stageNoteDeletion,
+  commitNoteChange,
+  pushIfConfigured,
+} from './gitService.mjs';
 
 export const NoteErrors = {
   NOT_FOUND: 'NOT_FOUND',
@@ -9,16 +16,21 @@ export const NoteErrors = {
 
 function noteFilePath(noteId) {
   const safeId = String(noteId).replace(/[^a-zA-Z0-9-_]/g, '_');
-  return path.join(DATA_DIR, `${safeId}.json`);
+  return path.join(STORAGE_DIR, `${safeId}.json`);
+}
+
+function noteFileRelativePath(noteId) {
+  const safeId = String(noteId).replace(/[^a-zA-Z0-9-_]/g, '_');
+  return `${safeId}.json`;
 }
 
 export async function listNotes() {
-  const entries = await fs.readdir(DATA_DIR, { withFileTypes: true });
+  const entries = await fs.readdir(STORAGE_DIR, { withFileTypes: true });
   const results = [];
 
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
-    const fullPath = path.join(DATA_DIR, entry.name);
+    const fullPath = path.join(STORAGE_DIR, entry.name);
     try {
       const raw = await fs.readFile(fullPath, 'utf8');
       const parsed = JSON.parse(raw);
@@ -56,6 +68,8 @@ export async function readNote(noteId) {
 }
 
 export async function writeNote(blob) {
+  await ensureRepoInitialized();
+
   const record = {
     noteId: blob.noteId,
     updatedAt: new Date().toISOString(),
@@ -63,19 +77,60 @@ export async function writeNote(blob) {
   };
 
   const filePath = noteFilePath(blob.noteId);
+
+  let existedBefore = false;
+  try {
+    await fs.access(filePath);
+    existedBefore = true;
+  } catch {
+    existedBefore = false;
+  }
+
   await fs.writeFile(filePath, JSON.stringify(record, null, 2), 'utf8');
+
+  const relPath = noteFileRelativePath(blob.noteId);
+  // Fire-and-forget Git operations; storage success does not depend on them.
+  (async () => {
+    try {
+      await stageNoteChange(relPath, existedBefore);
+      const action = existedBefore ? 'updated' : 'created';
+      await commitNoteChange(`note ${blob.noteId} ${action}`);
+      await pushIfConfigured();
+    } catch {
+      // Errors are logged inside gitService; do not rethrow.
+    }
+  })();
 }
 
 export async function deleteNote(noteId) {
+  await ensureRepoInitialized();
+
   const filePath = noteFilePath(noteId);
+  const relPath = noteFileRelativePath(noteId);
+
+  let existedBefore = true;
 
   try {
     await fs.unlink(filePath);
+    existedBefore = true;
   } catch (err) {
     if (err && err.code === 'ENOENT') {
+      existedBefore = false;
       return;
     }
     throw err;
   }
+
+  if (!existedBefore) return;
+
+  (async () => {
+    try {
+      await stageNoteDeletion(relPath);
+      await commitNoteChange(`note ${noteId} deleted`);
+      await pushIfConfigured();
+    } catch {
+      // Errors are logged inside gitService; do not rethrow.
+    }
+  })();
 }
 

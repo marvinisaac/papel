@@ -7,6 +7,7 @@ import { authenticate } from './middleware/authenticate.mjs';
 import { errorHandler } from './middleware/errorHandler.mjs';
 import saltRoutes from './routes/saltRoutes.mjs';
 import notesRoutes from './routes/notesRoutes.mjs';
+import gitStatusRoutes from './routes/gitStatusRoutes.mjs';
 
 export const app = express();
 
@@ -16,6 +17,7 @@ app.use(bootstrap);
 app.use(authenticate);
 app.use('/api', saltRoutes);
 app.use('/api', notesRoutes);
+app.use('/api', gitStatusRoutes);
 app.use(errorHandler);
 
 export function startServer(callback) {
