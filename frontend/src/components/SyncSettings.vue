@@ -2,11 +2,28 @@
   <div class="overlay">
     <div class="panel">
       <header class="panel__header">
-        <h2>Encrypted sync settings</h2>
+        <h2>Settings</h2>
         <button type="button" class="icon-button" @click="$emit('close')">
           ✕
         </button>
       </header>
+      <nav class="panel__tabs">
+        <button
+          type="button"
+          :class="['panel__tab', { 'panel__tab--active': activeTab === 'sync' }]"
+          @click="activeTab = 'sync'"
+        >
+          Sync
+        </button>
+        <button
+          type="button"
+          :class="['panel__tab', { 'panel__tab--active': activeTab === 'import-export' }]"
+          @click="activeTab = 'import-export'"
+        >
+          Import & export
+        </button>
+      </nav>
+      <template v-if="activeTab === 'sync'">
       <p class="panel__description">
         Configure an optional backend for encrypted backups and sync.
         The backend only ever sees encrypted blobs, never your plaintext notes
@@ -98,6 +115,25 @@
           </div>
         </div>
       </form>
+      </template>
+      <template v-else>
+        <div class="import-export">
+          <label class="import-export__label">
+            Import Markdown
+            <input
+              ref="fileInput"
+              type="file"
+              accept=".md,text/markdown"
+              multiple
+              class="import-export__file"
+              @change="onFilesSelected"
+            />
+          </label>
+          <button type="button" class="secondary" @click="$emit('export-all')">
+            Export all notes
+          </button>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -115,13 +151,28 @@ const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'save', payload: { backendUrl: string; apiToken: string; passphrase: string }): void;
   (e: 'disable'): void;
+  (e: 'import-files', files: FileList): void;
+  (e: 'export-all'): void;
 }>();
+
+const activeTab = ref<'sync' | 'import-export'>('sync');
+const fileInput = ref<HTMLInputElement | null>(null);
 
 const backendUrl = ref('');
 const apiToken = ref('');
 const passphrase = ref('');
 const hasExistingConfig = ref(false);
 const showAdvancedBackend = ref(false);
+
+function onFilesSelected(event: Event) {
+  const target = event.target as HTMLInputElement | null;
+  if (target?.files && target.files.length) {
+    emit('import-files', target.files);
+  }
+  if (target) {
+    target.value = '';
+  }
+}
 
 onMounted(() => {
   const existing = loadBackendConfig();
@@ -145,7 +196,7 @@ function onSave() {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,13 +206,14 @@ function onSave() {
 .panel {
   width: 420px;
   max-width: 100%;
-  background: white;
+  background: var(--bg-elevated);
   border-radius: 0.75rem;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.25);
+  box-shadow: var(--shadow-elevated);
   padding: 1.25rem 1.5rem 1.5rem;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  border: 1px solid var(--border-subtle);
 }
 
 .panel__header {
@@ -174,6 +226,63 @@ function onSave() {
 .panel__header h2 {
   font-size: 1.05rem;
   margin: 0;
+  color: var(--text-accent);
+}
+
+.panel__tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border-subtle);
+  margin: -0.25rem 0 0;
+}
+
+.panel__tab {
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.panel__tab:hover {
+  color: var(--text-accent);
+}
+
+.panel__tab--active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  font-weight: 500;
+}
+
+.import-export {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.import-export__label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  background: var(--bg-active);
+  color: var(--text-accent);
+  font-size: 0.85rem;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.import-export__file {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .icon-button {
@@ -181,11 +290,12 @@ function onSave() {
   background: transparent;
   cursor: pointer;
   font-size: 1rem;
+  color: var(--text-muted);
 }
 
 .panel__description {
   font-size: 0.85rem;
-  color: #4b5563;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -204,18 +314,21 @@ function onSave() {
 .field__label {
   font-size: 0.8rem;
   font-weight: 500;
+  color: var(--text-muted);
 }
 
 .field__input {
   border-radius: 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-subtle);
   padding: 0.4rem 0.6rem;
   font-size: 0.85rem;
+  background: var(--bg-app);
+  color: var(--text-normal);
 }
 
 .hint {
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -228,7 +341,7 @@ function onSave() {
 
 .status {
   font-size: 0.8rem;
-  color: #2563eb;
+  color: var(--accent-primary);
 }
 
 .panel__actions {
@@ -241,8 +354,8 @@ function onSave() {
   padding: 0.4rem 0.8rem;
   border-radius: 0.5rem;
   border: none;
-  background: #2563eb;
-  color: white;
+  background: var(--accent-primary);
+  color: var(--text-accent);
   font-size: 0.85rem;
   cursor: pointer;
 }
@@ -250,16 +363,17 @@ function onSave() {
 .secondary {
   padding: 0.4rem 0.8rem;
   border-radius: 0.5rem;
-  border: 1px solid #d1d5db;
-  background: white;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
   font-size: 0.85rem;
   cursor: pointer;
+  color: var(--text-normal);
 }
 
 .danger {
   margin-top: 0.5rem;
   padding-top: 0.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
@@ -269,10 +383,10 @@ function onSave() {
   align-self: flex-start;
   padding: 0.25rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid #f97316;
-  background: white;
+  border: 1px solid var(--danger-border);
+  background: transparent;
   font-size: 0.75rem;
-  color: #ea580c;
+  color: var(--danger-border);
   cursor: pointer;
 }
 

@@ -1,9 +1,1 @@
-body {
-  margin: 0;
-  background: #f9fafb;
-  color: #111827;
-}
-
-* {
-  box-sizing: border-box;
-}
+@import './theme.css';

@@ -1,24 +1,5 @@
 <template>
   <div class="app-shell">
-    <header class="app-header">
-      <div class="app-header__title">
-        <h1>Papel Offline MVP</h1>
-        <div class="sync-indicator">
-          <span
-            :class="['sync-indicator__dot', { 'sync-indicator__dot--active': syncConfigured }]"
-          ></span>
-          <span class="sync-indicator__text">
-            {{ syncConfigured ? 'Sync configured' : 'Sync off' }}
-          </span>
-        </div>
-      </div>
-      <div class="app-header__actions">
-        <ImportExportBar @import-files="handleImport" @export-all="handleExportAll" />
-        <button type="button" class="sync-button" @click="showSyncSettings = true">
-          Sync settings
-        </button>
-      </div>
-    </header>
     <main class="app-main">
       <div class="layout">
         <NoteList
@@ -27,11 +8,13 @@
           @create="handleCreate"
           @select="handleSelect"
           @delete="handleDelete"
+          @open-settings="showSyncSettings = true"
         />
         <NoteEditor
           :note-id="selectedId"
           :title="currentNote?.title ?? ''"
           :content="currentNote?.content ?? ''"
+          :sync-configured="syncConfigured"
           @update-local="handleUpdateLocal"
         />
       </div>
@@ -43,6 +26,8 @@
       @close="showSyncSettings = false"
       @save="handleSaveSyncSettings"
       @disable="handleDisableSync"
+      @import-files="handleImport"
+      @export-all="handleExportAll"
     />
   </div>
 </template>
@@ -54,7 +39,6 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
-import ImportExportBar from './components/ImportExportBar.vue';
 import SyncSettings from './components/SyncSettings.vue';
 import type { Note } from './types/note';
 import { listNotes, createNote, deleteNote } from './storage/noteStore';
@@ -328,61 +312,9 @@ function handleDisableSync() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    sans-serif;
-}
-
-.app-header {
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.app-header__title {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.app-header__actions {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.sync-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-.sync-indicator__dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
-  background: #9ca3af;
-}
-
-.sync-indicator__dot--active {
-  background: #22c55e;
-}
-
-.sync-indicator__text {
-  white-space: nowrap;
-}
-
-.sync-button {
-  padding: 0.35rem 0.7rem;
-  border-radius: 0.5rem;
-  border: 1px solid #d1d5db;
-  background: white;
-  font-size: 0.8rem;
-  cursor: pointer;
+  font-family: var(--font-ui);
+  background: var(--bg-app);
+  color: var(--text-normal);
 }
 
 .app-main {
@@ -392,6 +324,7 @@ function handleDisableSync() {
 
 .layout {
   display: flex;
-  height: calc(100vh - 64px);
+  height: 100vh;
+  background: var(--bg-app);
 }
 </style>

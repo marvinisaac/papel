@@ -1,0 +1,95 @@
+/* Obsidian-inspired dark theme tokens */
+:root {
+  /* Backgrounds */
+  --bg-app: #1e1e1e;
+  --bg-sidebar: #202020;
+  --bg-editor: #1e1e1e;
+  --bg-elevated: #252525;
+  --bg-active: #2b2b2b;
+
+  /* Text */
+  --text-normal: #dcddde;
+  --text-muted: #9ca3b0;
+  --text-accent: #f5f5f5;
+
+  /* Borders & shadows */
+  --border-subtle: #2f3336;
+  --border-strong: #3c3f41;
+  --shadow-elevated: 0 20px 40px rgba(0, 0, 0, 0.65);
+
+  /* Accent & states */
+  --accent-primary: #7b6cd9;
+  --accent-primary-soft: rgba(123, 108, 217, 0.16);
+  --danger-bg: rgba(220, 38, 38, 0.2);
+  --danger-border: #ef4444;
+
+  /* Sync indicator */
+  --sync-off: #f97373;
+  --sync-on: #4ade80;
+
+  /* Typography */
+  --font-ui: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --font-size-base: 14px;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg-app);
+  color: var(--text-normal);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-base);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Basic markdown styling for the preview */
+.markdown-body {
+  color: var(--text-normal);
+  line-height: 1.6;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  margin: 0.75rem 0 0.25rem;
+  font-weight: 600;
+}
+
+.markdown-body a {
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+.markdown-body a:hover {
+  text-decoration: underline;
+}
+
+.markdown-body code {
+  font-family: var(--font-mono);
+  background: #111111;
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+.markdown-body pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: #111111;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+}
+
