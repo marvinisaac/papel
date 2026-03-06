@@ -1,0 +1,29 @@
+networks:
+    default:
+        external:
+            name: dev
+
+services:
+    vue:
+        image: node:22-alpine
+        container_name: project-papel
+        environment:
+            - VIRTUAL_HOST=papel.home
+            - VIRTUAL_PORT=5173
+        command: "npm run dev"
+        volumes:
+            - ./frontend:/home/node/app
+        working_dir: /home/node/app
+    backend:
+        image: node:22-alpine
+        container_name: papel-backend
+        environment:
+            - API_TOKEN=changeme
+            - DATA_DIR=/data
+            - VIRTUAL_HOST=papel-api.home
+            - VIRTUAL_PORT=3000
+        command: "node server.mjs"
+        volumes:
+            - ./backend:/home/node/app
+            - ./backend-data:/data
+        working_dir: /home/node/app

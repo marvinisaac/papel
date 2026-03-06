@@ -52,8 +52,8 @@ function onFilesSelected(event: Event) {
   justify-content: center;
   padding: 0.4rem 0.8rem;
   border-radius: 0.4rem;
-  background: #111827;
-  color: white;
+  background: var(--bg-active);
+  color: var(--text-accent);
   font-size: 0.8rem;
   cursor: pointer;
 }
@@ -68,9 +68,10 @@ function onFilesSelected(event: Event) {
 .secondary {
   padding: 0.4rem 0.8rem;
   border-radius: 0.4rem;
-  border: 1px solid #d1d5db;
-  background: white;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
   font-size: 0.8rem;
   cursor: pointer;
+  color: var(--text-normal);
 }
 </style>

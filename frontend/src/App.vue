@@ -1,9 +1,5 @@
 <template>
   <div class="app-shell">
-    <header class="app-header">
-      <h1>Papel Offline MVP</h1>
-      <ImportExportBar @import-files="handleImport" @export-all="handleExportAll" />
-    </header>
     <main class="app-main">
       <div class="layout">
         <NoteList
@@ -12,15 +8,27 @@
           @create="handleCreate"
           @select="handleSelect"
           @delete="handleDelete"
+          @open-settings="showSyncSettings = true"
         />
         <NoteEditor
           :note-id="selectedId"
           :title="currentNote?.title ?? ''"
           :content="currentNote?.content ?? ''"
+          :sync-configured="syncConfigured"
           @update-local="handleUpdateLocal"
         />
       </div>
     </main>
+    <SyncSettings
+      v-if="showSyncSettings"
+      :status-message="syncStatusMessage"
+      :passphrase-locked="passphraseLocked"
+      @close="showSyncSettings = false"
+      @save="handleSaveSyncSettings"
+      @disable="handleDisableSync"
+      @import-files="handleImport"
+      @export-all="handleExportAll"
+    />
   </div>
 </template>
 
@@ -31,21 +39,39 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import NoteList from './components/NoteList.vue';
 import NoteEditor from './components/NoteEditor.vue';
-import ImportExportBar from './components/ImportExportBar.vue';
+import SyncSettings from './components/SyncSettings.vue';
 import type { Note } from './types/note';
 import { listNotes, createNote, deleteNote } from './storage/noteStore';
 import { flushAutosave } from './storage/autosave';
 import { registerGlobalShortcuts } from './shortcuts';
+import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
+import type { DerivedKeyMaterial } from './crypto/keys';
+import { deriveKeysFromPassphrase } from './crypto/keys';
+import {
+  initialSync,
+  pushNote,
+  deleteNoteRemote,
+  validatePassphraseForBackend,
+} from './backend/syncService';
 
 const notes = ref<Note[]>([]);
 const selectedId = ref<string | null>(null);
+const showSyncSettings = ref(false);
+const syncStatusMessage = ref<string | null>(null);
+const cryptoKeys = ref<DerivedKeyMaterial | null>(null);
+const backendConfig = ref(loadBackendConfig());
 
 const route = useRoute();
 const router = useRouter();
 
-const currentNote = computed(() =>
-  notes.value.find((n) => n.id === selectedId.value) ?? null,
+const currentNote = computed(
+  () => notes.value.find((n) => n.id === selectedId.value) ?? null,
 );
+
+// Sync is considered \"configured\" only when this session has valid keys.
+const syncConfigured = computed(() => !!cryptoKeys.value);
+// Passphrase cannot be changed while keys are active in this session.
+const passphraseLocked = computed(() => !!cryptoKeys.value);
 
 async function loadNotes() {
   notes.value = await listNotes();
@@ -71,7 +97,13 @@ onMounted(() => {
     },
     saveNote: () => {
       if (selectedId.value) {
-        void flushAutosave(selectedId.value);
+        const id = selectedId.value;
+        void (async () => {
+          await flushAutosave(id);
+          if (id && cryptoKeys.value) {
+            await pushNote(id, cryptoKeys.value);
+          }
+        })();
       }
     },
   });
@@ -79,6 +111,13 @@ onMounted(() => {
   onBeforeUnmount(() => {
     unregister();
   });
+
+  // If a backend configuration exists, ask the user to re-enter their
+  // passphrase on each reload to unlock sync for this session.
+  if (backendConfig.value && !cryptoKeys.value) {
+    syncStatusMessage.value = 'Enter your passphrase to unlock encrypted sync.';
+    showSyncSettings.value = true;
+  }
 });
 
 watch(
@@ -97,6 +136,9 @@ async function handleCreate() {
     notes.value = [note, ...notes.value];
     selectedId.value = note.id;
     await router.push({ name: 'note', params: { id: note.id } });
+    if (cryptoKeys.value) {
+      await pushNote(note.id, cryptoKeys.value);
+    }
   } catch (err) {
     console.error('Failed to create note', err);
   }
@@ -111,6 +153,9 @@ async function handleDelete(id: string) {
   if (!confirm('Delete this note?')) return;
   try {
     await deleteNote(id);
+    if (cryptoKeys.value) {
+      await deleteNoteRemote(id);
+    }
     notes.value = notes.value.filter((n) => n.id !== id);
     if (selectedId.value === id) {
       const next = notes.value[0];
@@ -175,6 +220,91 @@ async function handleExportAll() {
   const blob = await zip.generateAsync({ type: 'blob' });
   saveAs(blob, 'papel-notes.zip');
 }
+
+function handleSaveSyncSettings(payload: {
+  backendUrl: string;
+  apiToken: string;
+  passphrase: string;
+}) {
+  if (!payload.backendUrl || !payload.apiToken) {
+    syncStatusMessage.value = 'Backend URL and API token are required.';
+    return;
+  }
+
+  if (!payload.passphrase) {
+    syncStatusMessage.value = 'Passphrase is required to derive encryption keys.';
+    return;
+  }
+
+  (async () => {
+    try {
+      const saltUrl = new URL('/api/salt', payload.backendUrl).toString();
+      const saltResponse = await fetch(saltUrl, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${payload.apiToken}`,
+        },
+      });
+      if (!saltResponse.ok) {
+        throw new Error(`Failed to fetch salt: ${saltResponse.status} ${saltResponse.statusText}`);
+      }
+      const saltJson = (await saltResponse.json()) as { salt: string };
+      const saltBase64FromBackend = saltJson.salt;
+      const binary = atob(saltBase64FromBackend);
+      const saltBytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        saltBytes[i] = binary.charCodeAt(i);
+      }
+
+      const keys = await deriveKeysFromPassphrase(payload.passphrase, {
+        salt: saltBytes,
+      });
+
+      const validation = await validatePassphraseForBackend(
+        payload.backendUrl,
+        payload.apiToken,
+        keys,
+      );
+
+      if (validation.hadRemoteNotes && validation.decryptedCount === 0) {
+        cryptoKeys.value = null;
+        syncStatusMessage.value =
+          'Passphrase is invalid for existing encrypted notes on this backend. Use the original passphrase or clear the backend data.';
+        return;
+      }
+
+      cryptoKeys.value = keys;
+
+      saveBackendConfig({
+        baseUrl: payload.backendUrl,
+        apiToken: payload.apiToken,
+        salt: saltBase64FromBackend,
+      });
+      backendConfig.value = {
+        baseUrl: payload.backendUrl,
+        apiToken: payload.apiToken,
+        salt: saltBase64FromBackend,
+      };
+
+      await initialSync(keys);
+
+      syncStatusMessage.value =
+        'Sync enabled. Notes will be encrypted locally and synced when possible.';
+      showSyncSettings.value = false;
+    } catch (err) {
+      console.error('Failed to configure sync', err);
+      syncStatusMessage.value = 'Failed to configure sync. Check console for details.';
+    }
+  })();
+}
+
+function handleDisableSync() {
+  clearBackendConfig();
+  syncStatusMessage.value = 'Sync disabled. Existing encrypted data on the backend is untouched.';
+  showSyncSettings.value = false;
+  backendConfig.value = null;
+  cryptoKeys.value = null;
+}
 </script>
 
 <style scoped>
@@ -182,17 +312,9 @@ async function handleExportAll() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    sans-serif;
-}
-
-.app-header {
-  padding: 0.75rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
-  background: white;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  font-family: var(--font-ui);
+  background: var(--bg-app);
+  color: var(--text-normal);
 }
 
 .app-main {
@@ -202,6 +324,7 @@ async function handleExportAll() {
 
 .layout {
   display: flex;
-  height: calc(100vh - 64px);
+  height: 100vh;
+  background: var(--bg-app);
 }
 </style>

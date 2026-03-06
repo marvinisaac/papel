@@ -1,8 +1,12 @@
 <template>
   <aside class="note-list">
     <header class="note-list__header">
-      <button class="primary" type="button" @click="$emit('create')">
-        New note
+      <button type="button" class="note-list__icon-btn" @click="$emit('open-settings')" title="Settings">
+        ⚙️
+      </button>
+      <span class="note-list__icon-placeholder" title="Search">🔍</span>
+      <button type="button" class="note-list__new-btn" @click="$emit('create')">
+        ➕ New
       </button>
     </header>
     <ul class="note-list__items">
@@ -12,14 +16,14 @@
         :class="['note-list__item', { 'note-list__item--active': note.id === selectedId }]"
         @click="$emit('select', note.id)"
       >
-        <div class="note-list__title">{{ note.title || 'Untitled note' }}</div>
-        <div class="note-list__meta">{{ formatDate(note.updatedAt) }}</div>
+        <span class="note-list__title">{{ note.title || 'Untitled note' }}</span>
         <button
-          class="note-list__delete"
           type="button"
+          class="note-list__delete"
+          aria-label="Delete note"
           @click.stop="$emit('delete', note.id)"
         >
-          Delete
+          🗑️
         </button>
       </li>
       <li v-if="!notes.length" class="note-list__empty">No notes yet.</li>
@@ -39,36 +43,75 @@ defineEmits<{
   (e: 'create'): void;
   (e: 'select', id: string): void;
   (e: 'delete', id: string): void;
+  (e: 'open-settings'): void;
 }>();
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
-}
 </script>
 
 <style scoped>
 .note-list {
   width: 260px;
-  border-right: 1px solid #1f2937;
+  border-right: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
-  background: #020617;
+  background: var(--bg-sidebar);
 }
 
 .note-list__header {
-  padding: 0.75rem;
-  border-bottom: 1px solid #1f2937;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.primary {
-  width: 100%;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
+.note-list__icon-btn {
+  padding: 0.35rem;
   border: none;
-  background: #2563eb;
-  color: white;
-  font-size: 0.875rem;
+  border-radius: 0.35rem;
+  background: transparent;
+  font-size: 0.9rem;
   cursor: pointer;
+  line-height: 1;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.note-list__icon-btn:hover {
+  background: var(--bg-active);
+  color: var(--text-accent);
+}
+
+.note-list__icon-placeholder {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  line-height: 1;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.note-list__new-btn {
+  margin-left: auto;
+  padding: 0.4rem 0.8rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--accent-primary);
+  color: var(--text-accent);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.note-list__new-btn:hover {
+  background: var(--accent-primary-soft);
 }
 
 .note-list__items {
@@ -81,42 +124,52 @@ function formatDate(iso: string) {
 
 .note-list__item {
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #111827;
+  border-bottom: 1px solid var(--border-subtle);
   cursor: pointer;
   display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .note-list__item--active {
-  background: #111827;
+  background: var(--bg-active);
 }
 
 .note-list__title {
+  flex: 1;
   font-size: 0.9rem;
   font-weight: 500;
-}
-
-.note-list__meta {
-  font-size: 0.75rem;
-  color: #9ca3af;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-normal);
 }
 
 .note-list__delete {
-  align-self: flex-start;
-  margin-top: 0.2rem;
-  padding: 0.2rem 0.4rem;
-  font-size: 0.7rem;
+  flex-shrink: 0;
+  padding: 0.2rem;
   border: none;
   border-radius: 0.25rem;
-  background: #b91c1c;
-  color: #f9fafb;
+  background: transparent;
+  font-size: 0.9rem;
   cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+   color: var(--text-muted);
+}
+
+.note-list__item:hover .note-list__delete {
+  opacity: 1;
+}
+
+.note-list__delete:hover {
+  background: var(--danger-bg);
 }
 
 .note-list__empty {
   padding: 0.75rem;
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 </style>
