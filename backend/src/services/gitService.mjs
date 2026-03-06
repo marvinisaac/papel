@@ -8,6 +8,7 @@ import {
   GIT_BRANCH,
   GIT_AUTO_PUSH,
   GIT_PAT,
+  GIT_SNAPSHOT_INTERVAL_MS,
 } from '../config.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -19,6 +20,8 @@ const gitStatus = {
   lastPush: null,
   lastError: null,
 };
+
+let snapshotTimer = null;
 
 function setError(message) {
   gitStatus.lastError = message;
@@ -185,6 +188,74 @@ export async function pushIfConfigured() {
         : 'Push failed',
     );
   }
+}
+
+export async function snapshotNow({ push } = { push: true }) {
+  try {
+    await ensureRepoInitialized();
+  } catch {
+    // Repo initialization failed; gitStatus.lastError already set.
+    return null;
+  }
+
+  // Stage JSON files (notes and related metadata) under STORAGE_DIR.
+  try {
+    await runGit(['add', '*.json']);
+  } catch {
+    // No matching files or add failure; we'll detect empty stage below.
+  }
+
+  let files = [];
+  try {
+    const diff = await runGit(['diff', '--cached', '--name-only']);
+    files = diff
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  } catch {
+    // If we cannot inspect staged files, bail out without committing.
+    return null;
+  }
+
+  const count = files.length;
+  if (count === 0) {
+    return null;
+  }
+
+  const timestamp = new Date().toISOString();
+  const message = `snapshot: ${timestamp} (${count} files)`;
+
+  try {
+    await runGit(['commit', '-m', message]);
+  } catch {
+    // If commit fails (e.g., race where nothing left to commit), stop here.
+    return null;
+  }
+
+  try {
+    const hash = await runGit(['rev-parse', 'HEAD']);
+    gitStatus.lastCommit = { hash, timestamp };
+    gitStatus.lastError = null;
+  } catch {
+    // Ignore inability to read HEAD; commit already happened.
+  }
+
+  if (push) {
+    await pushIfConfigured();
+  }
+
+  return gitStatus.lastCommit;
+}
+
+export function startGitSnapshotScheduler() {
+  if (!GIT_SNAPSHOT_INTERVAL_MS || GIT_SNAPSHOT_INTERVAL_MS <= 0) return;
+  if (snapshotTimer) return;
+
+  snapshotTimer = setInterval(() => {
+    snapshotNow().catch(() => {
+      // Errors are logged inside gitService; ignore here.
+    });
+  }, GIT_SNAPSHOT_INTERVAL_MS);
 }
 
 export async function getGitStatus() {
