@@ -31,10 +31,7 @@ Make the backend’s encrypted blob store Git-aware, providing version history, 
 - **Committing changes**
   - After processing write operations (e.g., `PUT /api/notes/:noteId`, `DELETE /api/notes/:noteId`):
     - Stage changed files under `notes/`.
-    - Create a commit with a structured message, for example:
-      - `note <noteId> created`
-      - `note <noteId> updated`
-      - `note <noteId> deleted`
+    - Create a commit with a structured message in the form: `YYYY MM DD HH:mm (N files)` (date/time in UTC), e.g. `2026 03 07 13:00 (2 files)`.
     - Batch multiple note changes into a single commit when appropriate (e.g., multiple writes in a short window).
 - **Pushing to remote**
   - If a Git remote is configured:
