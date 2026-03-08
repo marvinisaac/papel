@@ -46,7 +46,15 @@ import { flushAutosave } from './storage/autosave';
 import { registerGlobalShortcuts } from './shortcuts';
 import { loadBackendConfig, saveBackendConfig, clearBackendConfig } from './backend/config';
 import type { DerivedKeyMaterial } from './crypto/keys';
-import { deriveKeysFromPassphrase } from './crypto/keys';
+import {
+  deriveKeysFromPassphraseWithRaw,
+  importKeysFromRaw,
+} from './crypto/keys';
+import {
+  clearSessionKeys,
+  loadSessionKeys,
+  saveSessionKeys,
+} from './crypto/sessionKeyCache';
 import {
   initialSync,
   pushNote,
@@ -112,11 +120,23 @@ onMounted(() => {
     unregister();
   });
 
-  // If a backend configuration exists, ask the user to re-enter their
-  // passphrase on each reload to unlock sync for this session.
+  // If a backend configuration exists, try session cache first; otherwise
+  // ask the user to re-enter their passphrase to unlock sync for this session.
   if (backendConfig.value && !cryptoKeys.value) {
-    syncStatusMessage.value = 'Enter your passphrase to unlock encrypted sync.';
-    showSyncSettings.value = true;
+    (async () => {
+      try {
+        const raw = loadSessionKeys();
+        if (raw) {
+          const keys = await importKeysFromRaw(raw);
+          cryptoKeys.value = keys;
+          return;
+        }
+      } catch {
+        // Fall through to passphrase prompt.
+      }
+      syncStatusMessage.value = 'Enter your passphrase to unlock encrypted sync.';
+      showSyncSettings.value = true;
+    })();
   }
 });
 
@@ -256,9 +276,10 @@ function handleSaveSyncSettings(payload: {
         saltBytes[i] = binary.charCodeAt(i);
       }
 
-      const keys = await deriveKeysFromPassphrase(payload.passphrase, {
-        salt: saltBytes,
-      });
+      const { keys, rawKeyMaterial } = await deriveKeysFromPassphraseWithRaw(
+        payload.passphrase,
+        { salt: saltBytes },
+      );
 
       const validation = await validatePassphraseForBackend(
         payload.backendUrl,
@@ -274,6 +295,7 @@ function handleSaveSyncSettings(payload: {
       }
 
       cryptoKeys.value = keys;
+      saveSessionKeys(rawKeyMaterial);
 
       saveBackendConfig({
         baseUrl: payload.backendUrl,
@@ -300,6 +322,7 @@ function handleSaveSyncSettings(payload: {
 
 function handleDisableSync() {
   clearBackendConfig();
+  clearSessionKeys();
   syncStatusMessage.value = 'Sync disabled. Existing encrypted data on the backend is untouched.';
   showSyncSettings.value = false;
   backendConfig.value = null;
