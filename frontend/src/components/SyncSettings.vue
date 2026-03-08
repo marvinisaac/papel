@@ -1,3 +1,68 @@
+
+<script setup lang="ts">
+  import { computed, onMounted, ref } from 'vue';
+  import { loadBackendConfig } from '../backend/config';
+
+  const props = defineProps<{
+    statusMessage: string | null;
+    passphraseLocked: boolean;
+  }>();
+
+  const emit = defineEmits<{
+    (e: 'close'): void;
+    (e: 'save', payload: { backendUrl: string; apiToken: string; passphrase: string }): void;
+    (e: 'disable'): void;
+    (e: 'import-files', files: FileList): void;
+    (e: 'export-all'): void;
+  }>();
+
+  const activeTab = ref<'sync' | 'import-export'>('sync');
+  const fileInput = ref<HTMLInputElement | null>(null);
+
+  const backendUrl = ref('');
+  const apiToken = ref('');
+  const passphrase = ref('');
+  const passphraseConfirm = ref('');
+  const hasExistingConfig = ref(false);
+  const showAdvancedBackend = ref(false);
+
+  const passphraseMismatch = computed(() => {
+    if (props.passphraseLocked) return false;
+    if (!passphraseConfirm.value) return false;
+    return passphrase.value !== passphraseConfirm.value;
+  });
+
+  function onFilesSelected(event: Event) {
+    const target = event.target as HTMLInputElement | null;
+    if (target?.files && target.files.length) {
+      emit('import-files', target.files);
+    }
+    if (target) {
+      target.value = '';
+    }
+  }
+
+  onMounted(() => {
+    const existing = loadBackendConfig();
+    if (existing) {
+      backendUrl.value = existing.baseUrl;
+      apiToken.value = existing.apiToken;
+      hasExistingConfig.value = true;
+    }
+  });
+
+  function onSave() {
+    if (!props.passphraseLocked && passphraseMismatch.value) {
+      return;
+    }
+    emit('save', {
+      backendUrl: backendUrl.value.trim(),
+      apiToken: apiToken.value.trim(),
+      passphrase: passphrase.value,
+    });
+  }
+</script>
+
 <template>
   <div class="overlay">
     <div class="panel">
@@ -154,276 +219,212 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { loadBackendConfig } from '../backend/config';
-
-const props = defineProps<{
-  statusMessage: string | null;
-  passphraseLocked: boolean;
-}>();
-
-const emit = defineEmits<{
-  (e: 'close'): void;
-  (e: 'save', payload: { backendUrl: string; apiToken: string; passphrase: string }): void;
-  (e: 'disable'): void;
-  (e: 'import-files', files: FileList): void;
-  (e: 'export-all'): void;
-}>();
-
-const activeTab = ref<'sync' | 'import-export'>('sync');
-const fileInput = ref<HTMLInputElement | null>(null);
-
-const backendUrl = ref('');
-const apiToken = ref('');
-const passphrase = ref('');
-const passphraseConfirm = ref('');
-const hasExistingConfig = ref(false);
-const showAdvancedBackend = ref(false);
-
-const passphraseMismatch = computed(() => {
-  if (props.passphraseLocked) return false;
-  if (!passphraseConfirm.value) return false;
-  return passphrase.value !== passphraseConfirm.value;
-});
-
-function onFilesSelected(event: Event) {
-  const target = event.target as HTMLInputElement | null;
-  if (target?.files && target.files.length) {
-    emit('import-files', target.files);
-  }
-  if (target) {
-    target.value = '';
-  }
-}
-
-onMounted(() => {
-  const existing = loadBackendConfig();
-  if (existing) {
-    backendUrl.value = existing.baseUrl;
-    apiToken.value = existing.apiToken;
-    hasExistingConfig.value = true;
-  }
-});
-
-function onSave() {
-  if (!props.passphraseLocked && passphraseMismatch.value) {
-    return;
-  }
-  emit('save', {
-    backendUrl: backendUrl.value.trim(),
-    apiToken: apiToken.value.trim(),
-    passphrase: passphrase.value,
-  });
-}
-</script>
-
 <style scoped>
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 40;
-}
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+  }
 
-.panel {
-  width: 420px;
-  max-width: 100%;
-  background: var(--bg-elevated);
-  border-radius: 0.75rem;
-  box-shadow: var(--shadow-elevated);
-  padding: 1.25rem 1.5rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  border: 1px solid var(--border-subtle);
-}
+  .panel {
+    width: 420px;
+    max-width: 100%;
+    background: var(--bg-elevated);
+    border-radius: 0.75rem;
+    box-shadow: var(--shadow-elevated);
+    padding: 1.25rem 1.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border: 1px solid var(--border-subtle);
+  }
 
-.panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
+  .panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
 
-.panel__header h2 {
-  font-size: 1.05rem;
-  margin: 0;
-  color: var(--text-accent);
-}
+  .panel__header h2 {
+    font-size: 1.05rem;
+    margin: 0;
+    color: var(--text-accent);
+  }
 
-.panel__tabs {
-  display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--border-subtle);
-  margin: -0.25rem 0 0;
-}
+  .panel__tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+    margin: -0.25rem 0 0;
+  }
 
-.panel__tab {
-  padding: 0.5rem 0.75rem;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  background: transparent;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--text-muted);
-}
+  .panel__tab {
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    background: transparent;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
 
-.panel__tab:hover {
-  color: var(--text-accent);
-}
+  .panel__tab:hover {
+    color: var(--text-accent);
+  }
 
-.panel__tab--active {
-  color: var(--accent-primary);
-  border-bottom-color: var(--accent-primary);
-  font-weight: 500;
-}
+  .panel__tab--active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
+    font-weight: 500;
+  }
 
-.import-export {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+  .import-export {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 
-.import-export__label {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.4rem;
-  background: var(--bg-active);
-  color: var(--text-accent);
-  font-size: 0.85rem;
-  cursor: pointer;
-  width: fit-content;
-}
+  .import-export__label {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.4rem;
+    background: var(--bg-active);
+    color: var(--text-accent);
+    font-size: 0.85rem;
+    cursor: pointer;
+    width: fit-content;
+  }
 
-.import-export__file {
-  position: absolute;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  overflow: hidden;
-}
+  .import-export__file {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    overflow: hidden;
+  }
 
-.icon-button {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 1rem;
-  color: var(--text-muted);
-}
+  .icon-button {
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 1rem;
+    color: var(--text-muted);
+  }
 
-.panel__description {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  margin: 0;
-}
+  .panel__description {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
 
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
+  .form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 
-.field__label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-muted);
-}
+  .field__label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
 
-.field__input {
-  border-radius: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
-  background: var(--bg-app);
-  color: var(--text-normal);
-}
+  .field__input {
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-subtle);
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    background: var(--bg-app);
+    color: var(--text-normal);
+  }
 
-.hint {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0;
-}
+  .hint {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+  }
 
-.hint--error {
-  color: var(--danger-border, #c53030);
-}
+  .hint--error {
+    color: var(--danger-border, #c53030);
+  }
 
-.panel__footer {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
+  .panel__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
 
-.status {
-  font-size: 0.8rem;
-  color: var(--accent-primary);
-}
+  .status {
+    font-size: 0.8rem;
+    color: var(--accent-primary);
+  }
 
-.panel__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
+  .panel__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
 
-.primary {
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.5rem;
-  border: none;
-  background: var(--accent-primary);
-  color: var(--text-accent);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
+  .primary {
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    border: none;
+    background: var(--accent-primary);
+    color: var(--text-accent);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
 
-.secondary {
-  padding: 0.4rem 0.8rem;
-  border-radius: 0.5rem;
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--text-normal);
-}
+  .secondary {
+    padding: 0.4rem 0.8rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-subtle);
+    background: transparent;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-normal);
+  }
 
-.danger {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--border-subtle);
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+  .danger {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 
-.danger__toggle {
-  align-self: flex-start;
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid var(--danger-border);
-  background: transparent;
-  font-size: 0.75rem;
-  color: var(--danger-border);
-  cursor: pointer;
-}
+  .danger__toggle {
+    align-self: flex-start;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--danger-border);
+    background: transparent;
+    font-size: 0.75rem;
+    color: var(--danger-border);
+    cursor: pointer;
+  }
 
-.danger__body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
+  .danger__body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 </style>
 
