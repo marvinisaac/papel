@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 import {
   STORAGE_DIR,
@@ -10,6 +11,44 @@ import {
   GIT_PAT,
   GIT_SNAPSHOT_INTERVAL_MS,
 } from '../config.mjs';
+
+const DECRYPT_README_NAME = 'DECRYPT_NOTES.md';
+const DECRYPT_SCRIPT_NAME = 'decrypt-notes.mjs';
+
+function getScriptsDir() {
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  return path.join(dir, '..', '..', 'scripts');
+}
+
+function getDecryptScriptSourcePath() {
+  return path.join(getScriptsDir(), DECRYPT_SCRIPT_NAME);
+}
+
+function getDecryptReadmeSourcePath() {
+  return path.join(getScriptsDir(), DECRYPT_README_NAME);
+}
+
+async function ensureDecryptScriptInStorage() {
+  const fs = await import('fs/promises');
+  const source = getDecryptScriptSourcePath();
+  const dest = path.join(STORAGE_DIR, DECRYPT_SCRIPT_NAME);
+  try {
+    await fs.copyFile(source, dest);
+  } catch (err) {
+    // Source may be missing if running from a clone without backend; ignore.
+  }
+}
+
+async function ensureDecryptReadmeInStorage() {
+  const fs = await import('fs/promises');
+  const source = getDecryptReadmeSourcePath();
+  const dest = path.join(STORAGE_DIR, DECRYPT_README_NAME);
+  try {
+    await fs.copyFile(source, dest);
+  } catch (err) {
+    // Source may be missing if running from a clone without backend; ignore.
+  }
+}
 
 const execFileAsync = promisify(execFile);
 
@@ -118,6 +157,9 @@ export async function ensureRepoInitialized() {
     }
   }
 
+  await ensureDecryptScriptInStorage();
+  await ensureDecryptReadmeInStorage();
+
   gitStatus.enabled = true;
 
   try {
@@ -218,6 +260,18 @@ export async function snapshotNow({ push } = { push: true }) {
     await runGit(['add', '*.json']);
   } catch {
     // No matching files or add failure; we'll detect empty stage below.
+  }
+
+  try {
+    await runGit(['add', DECRYPT_SCRIPT_NAME]);
+  } catch {
+    // Script may not exist in STORAGE_DIR (e.g. fresh clone); ignore.
+  }
+
+  try {
+    await runGit(['add', DECRYPT_README_NAME]);
+  } catch {
+    // Readme may not exist in STORAGE_DIR (e.g. fresh clone); ignore.
   }
 
   let files = [];
