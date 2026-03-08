@@ -229,6 +229,7 @@
     outline: none;
     background: var(--bg-editor);
     color: var(--text-normal);
+    padding-bottom: 50vh;
   }
 
   .note-editor__body--single {
@@ -242,6 +243,7 @@
     overflow-y: auto;
     background: var(--bg-editor);
     border-left: 1px solid var(--border-subtle);
+    padding-bottom: 50vh;
   }
 
   .note-editor--empty {
