@@ -309,6 +309,7 @@ function handleSaveSyncSettings(payload: {
       };
 
       await initialSync(keys);
+      await loadNotes();
 
       syncStatusMessage.value =
         'Sync enabled. Notes will be encrypted locally and synced when possible.';
