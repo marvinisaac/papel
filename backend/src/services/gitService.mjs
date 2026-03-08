@@ -21,6 +21,21 @@ const gitStatus = {
   lastError: null,
 };
 
+/**
+ * Format a commit message as "YYYY MM DD HH:mm (N files)" in UTC.
+ * @param {number} fileCount
+ * @returns {string}
+ */
+function formatCommitMessage(fileCount) {
+  const now = new Date();
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  const h = String(now.getUTCHours()).padStart(2, '0');
+  const min = String(now.getUTCMinutes()).padStart(2, '0');
+  return `${y} ${m} ${d} ${h}:${min} (${fileCount} files)`;
+}
+
 let snapshotTimer = null;
 
 function setError(message) {
@@ -222,8 +237,8 @@ export async function snapshotNow({ push } = { push: true }) {
     return null;
   }
 
+  const message = formatCommitMessage(count);
   const timestamp = new Date().toISOString();
-  const message = `snapshot: ${timestamp} (${count} files)`;
 
   try {
     await runGit(['commit', '-m', message]);
