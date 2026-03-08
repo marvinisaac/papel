@@ -60,6 +60,18 @@
             :placeholder="passphraseLocked ? 'Passphrase is locked; disable sync to change' : 'Create a strong passphrase'"
           />
         </label>
+        <label v-if="!passphraseLocked" class="field">
+          <span class="field__label">Confirm passphrase</span>
+          <input
+            v-model="passphraseConfirm"
+            type="password"
+            class="field__input"
+            placeholder="Re-enter passphrase"
+          />
+        </label>
+        <p v-if="passphraseMismatch" class="hint hint--error">
+          Passphrases do not match.
+        </p>
         <p class="hint">
           The passphrase never leaves your browser. Losing it means the
           encrypted data on the backend cannot be recovered.
@@ -109,7 +121,11 @@
             <button type="button" class="secondary" @click="$emit('disable')">
               Disable sync
             </button>
-            <button type="submit" class="primary">
+            <button
+              type="submit"
+              class="primary"
+              :disabled="!passphraseLocked && (passphraseMismatch || !passphraseConfirm)"
+            >
               Save settings
             </button>
           </div>
@@ -139,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { loadBackendConfig } from '../backend/config';
 
 const props = defineProps<{
@@ -161,8 +177,15 @@ const fileInput = ref<HTMLInputElement | null>(null);
 const backendUrl = ref('');
 const apiToken = ref('');
 const passphrase = ref('');
+const passphraseConfirm = ref('');
 const hasExistingConfig = ref(false);
 const showAdvancedBackend = ref(false);
+
+const passphraseMismatch = computed(() => {
+  if (props.passphraseLocked) return false;
+  if (!passphraseConfirm.value) return false;
+  return passphrase.value !== passphraseConfirm.value;
+});
 
 function onFilesSelected(event: Event) {
   const target = event.target as HTMLInputElement | null;
@@ -184,6 +207,9 @@ onMounted(() => {
 });
 
 function onSave() {
+  if (!props.passphraseLocked && passphraseMismatch.value) {
+    return;
+  }
   emit('save', {
     backendUrl: backendUrl.value.trim(),
     apiToken: apiToken.value.trim(),
@@ -330,6 +356,10 @@ function onSave() {
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
+}
+
+.hint--error {
+  color: var(--danger-border, #c53030);
 }
 
 .panel__footer {
