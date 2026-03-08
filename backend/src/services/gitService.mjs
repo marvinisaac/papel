@@ -12,7 +12,7 @@ import {
   GIT_SNAPSHOT_INTERVAL_MS,
 } from '../config.mjs';
 
-const DECRYPT_README_NAME = 'DECRYPT_NOTES.md';
+const DECRYPT_README_NAME = 'README.MD';
 const DECRYPT_SCRIPT_NAME = 'decrypt-notes.mjs';
 
 function getScriptsDir() {
