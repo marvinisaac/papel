@@ -29,6 +29,8 @@
     validatePassphraseForBackend,
   } from './backend/syncService';
 
+  const SYNC_POLL_INTERVAL_MS = 60_000;
+
   const notes = ref<Note[]>([]);
   const pendingDeleteNote = ref<{ id: string; title: string } | null>(null);
   const selectedId = ref<string | null>(null);
@@ -36,6 +38,7 @@
   const syncStatusMessage = ref<string | null>(null);
   const cryptoKeys = ref<DerivedKeyMaterial | null>(null);
   const backendConfig = ref(loadBackendConfig());
+  const syncPollTimerId = ref<ReturnType<typeof setInterval> | null>(null);
 
   const route = useRoute();
   const router = useRouter();
@@ -86,6 +89,10 @@
 
     onBeforeUnmount(() => {
       unregister();
+      if (syncPollTimerId.value) {
+        clearInterval(syncPollTimerId.value);
+        syncPollTimerId.value = null;
+      }
     });
 
     // If a backend configuration exists, try session cache first; otherwise
@@ -97,6 +104,8 @@
           if (raw) {
             const keys = await importKeysFromRaw(raw);
             cryptoKeys.value = keys;
+            await initialSync(keys);
+            await loadNotes();
             return;
           }
         } catch {
@@ -107,6 +116,26 @@
       })();
     }
   });
+
+  watch(
+    syncConfigured,
+    (enabled) => {
+      if (syncPollTimerId.value) {
+        clearInterval(syncPollTimerId.value);
+        syncPollTimerId.value = null;
+      }
+      if (enabled) {
+        syncPollTimerId.value = setInterval(() => {
+          if (cryptoKeys.value) {
+            initialSync(cryptoKeys.value)
+              .then(() => loadNotes())
+              .catch((err) => console.error('Periodic sync failed', err));
+          }
+        }, SYNC_POLL_INTERVAL_MS);
+      }
+    },
+    { immediate: true },
+  );
 
   watch(
     () => route.params.id as string | undefined,

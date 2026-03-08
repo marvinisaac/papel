@@ -34,6 +34,16 @@ export interface InitialSyncResult {
   errorCount: number;
 }
 
+async function pruneNotesNotOnBackend(backendNoteIds: string[]): Promise<void> {
+  const backendIds = new Set(backendNoteIds);
+  const localNotes = await idbClient.getAll<Note>();
+  for (const note of localNotes) {
+    if (!backendIds.has(note.id)) {
+      await idbClient.delete(note.id);
+    }
+  }
+}
+
 export async function initialSync(
   keys: DerivedKeyMaterial,
 ): Promise<InitialSyncResult> {
@@ -55,15 +65,24 @@ export async function initialSync(
     const index = await fetchEncryptedNotesIndex();
     hadRemoteNotes = index.length > 0;
 
+    await pruneNotesNotOnBackend(index.map((m) => m.noteId));
+
     for (const meta of index) {
       try {
-        const blob = await fetchEncryptedNote(meta.noteId);
-        if (!blob) {
-          continue;
+        const local = await getNote(meta.noteId);
+        const backendNewer =
+          !meta.updatedAt ||
+          !local?.updatedAt ||
+          meta.updatedAt > local.updatedAt;
+        if (!local || backendNewer) {
+          const blob = await fetchEncryptedNote(meta.noteId);
+          if (!blob) {
+            continue;
+          }
+          const note = await decryptNote(keys, blob);
+          await idbClient.put<Note>(note);
+          decryptedCount += 1;
         }
-        const note = await decryptNote(keys, blob);
-        await idbClient.put<Note>(note);
-        decryptedCount += 1;
       } catch (err) {
         errorCount += 1;
         console.error('Failed to sync note from backend', meta.noteId, err);
